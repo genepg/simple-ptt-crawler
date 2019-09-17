@@ -17,7 +17,8 @@ const OptionsCookieOver18 = {
 
 export class PttCrawler {
   board = 'beauty';
-  maxPosts = 1;
+  limitedPosts = 0;
+  limitedPage = 0;
   scrapedArticles = 0;
 
   crawledPosts: PostInfo[] = [];
@@ -82,34 +83,34 @@ export class PttCrawler {
     return latestPage;
   }
 
-  private async crawling(page: number): Promise<PostInfo[]> {
-    if (this.crawledPosts.length > this.maxPosts) {
-      return this.crawledPosts;
+  private async crawlPostsByNumOfPost(page: number): Promise<PostInfo[]> {
+    if (this.crawledPosts.length >= this.limitedPosts) {
+      return this.crawledPosts.slice(0, this.limitedPosts);
     }
 
     const postsInPage = await this.getPostsInPage(page);
     this.crawledPosts.push(...postsInPage);
     const nextPage = page - 1;
-    return this.crawling(nextPage);
+    return this.crawlPostsByNumOfPost(nextPage);
   }
 
-  setFilter(filterOptions: BoardFilterOptions) {
-    const { articleType, aboveLikes } = filterOptions;
-    this.articleType = articleType;
-    this.aboveLikes = aboveLikes;
-  }
-
-  // crawl by latest posts
-  async crawlByPosts(maxPosts: number, onlyImages = false) {
-    this.maxPosts = maxPosts;
-
-    const latestPage = await this.getLatestPage(); // 3054
-    if (!latestPage) {
-      return;
+  private async crawlPostsByNumOfPage(page: number): Promise<PostInfo[]> {
+    const pages = []
+    for (let pageCount = 0; pageCount < this.limitedPage; pageCount++) {
+      pages.push(page - pageCount)
     }
-    const posts: PostInfo[] = await this.crawling(latestPage);
-    const postLinks = posts.map(post => post.link);
+    const postsPM = pages.map(async (pageNum) => {
+      const postsInPage = await this.getPostsInPage(pageNum);
+      return postsInPage
+    });
 
+    const posts2D = await Promise.all(postsPM)
+    const posts = posts2D.flat()
+
+    return posts;
+  }
+
+  private getCrawlerData(postLinks: string[], onlyImages = false) {
     if (onlyImages) {
       return this.getAllImagesInPosts(postLinks);
     }
@@ -121,6 +122,54 @@ export class PttCrawler {
 
     return Promise.all(postsDetail);
   }
-  // crawl by latest pages
+
+  // get posts by number of pages
+  private async getPostsInfo(limitType: string) {
+    const latestPage = await this.getLatestPage();
+    if (!latestPage) {
+      return;
+    }
+    let posts: PostInfo[] = []
+    if (limitType === 'pages') {
+      posts = await this.crawlPostsByNumOfPage(latestPage);
+    }
+    if (limitType === 'posts') {
+      posts = await this.crawlPostsByNumOfPost(latestPage);
+    }
+    return posts
+  }
+
+  setFilter(filterOptions: BoardFilterOptions) {
+    const { articleType, aboveLikes } = filterOptions;
+    this.articleType = articleType;
+    this.aboveLikes = aboveLikes;
+  }
+
+  // crawl from latest posts
+  async crawlByPosts(maxPosts: number, onlyImages = false) {
+    console.log('crawl posts >>>>')
+    this.limitedPosts = maxPosts;
+
+    const posts = await this.getPostsInfo('posts');
+    if (!posts) {
+      return;
+    }
+    const postLinks = posts.map(post => post.link);
+    return this.getCrawlerData(postLinks, onlyImages)
+  }
+
+  // crawl from latest pages
+  async crawlByPages(limitedPage: number, onlyImages = false) {
+    console.log('crawl pages >>>>', limitedPage)
+    this.limitedPage = limitedPage;
+
+    const posts = await this.getPostsInfo('pages')
+    if (!posts) {
+      return;
+    }
+    const postLinks = posts.map(post => post.link);
+
+    return this.getCrawlerData(postLinks, onlyImages)
+  }
   // crawl by date
 }
