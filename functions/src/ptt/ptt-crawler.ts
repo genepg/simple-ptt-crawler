@@ -104,6 +104,9 @@ export class PttCrawler {
     this.maxPosts = maxPosts;
 
     const latestPage = await this.getLatestPage(); // 3054
+    if (!latestPage) {
+      return;
+    }
     const posts: PostInfo[] = await this.crawling(latestPage);
     const postLinks = posts.map(post => post.link);
 

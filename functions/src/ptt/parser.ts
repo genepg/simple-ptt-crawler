@@ -54,12 +54,11 @@ export class ParserService {
       '.btn-group-paging a:nth-of-type(2)'
     );
     if (!element) {
-      return 1;
+      return null;
     }
-    // /bbs/Beauty/index3053.html
-    const match = element.href.match(/bbs\/Beauty\/index([0-9]+)\.html/);
+    const match = element.href.match(/bbs\/(?:.*)\/index([0-9]+)\.html/);
     if (!match) {
-      return 1;
+      return null;
     }
     const latestPageNum = Number(match[1]) + 1;
 
